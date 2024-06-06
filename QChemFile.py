@@ -11,13 +11,21 @@ from QChemPlot import generate_plot_generation,generate_plot_index,generate_plot
 from HoverObject import CreateHover
 from QChemView import view_xyz2
 
+'''this module encompasses all the functions needed for file processing of different file
+types used in quantum chemistry such as :cif,vasp,res and xyz.'''
+'''find_ending:used to find the ending of a generation to enable seperation and sorting
+of the different generations and how many structures they hold in'''
 def find_ending(s,start=0):
+    #it is assumed here that a generation/group is ending with the string bellow
     end='-------------------------- Local optimization finished -------------------------'.split()
+    #we return the index of the ending in the list
     for i in range(start,len(s)):
         if s[i]==end[0] and s[i+1]==end[1] and s[i+2]==end[2]:
             return i
     else:
         return -1
+'''merge_coordinates: used for merging crystal coordinates which are expressed as [a,b,c]
+so that when scouring the list they are considered one single entity/object'''
 def merge_coordinates(s):
     s1=s
     s2=''
@@ -36,6 +44,7 @@ def merge_coordinates(s):
         i+=1
         s2=''
     return s1
+"""is_poscar,is_res,is_cif: functions used to verify the format of the files used"""
 def is_poscar(file):
     try:
         poscar = Poscar.from_file(file)
@@ -54,10 +63,12 @@ def is_cif(file):
         return True
     except:
         return False
+"""browse_txt: function used to browse for a USPEX file and extract from it the energy 
+and how the groups/generations are formed"""
 def browse_txt(s11):
-    p=filedialog.askopenfile()
+    p=filedialog.askopenfile() #function to browse for uspex file
     path=str(p)
-    s=path.split("'")
+    s=path.split("'") #we transform the file into a list of strings
     s1=s[1]
     s1=list(s1)
     s12=''
@@ -86,17 +97,20 @@ def browse_txt(s11):
         g=[]
         for i in range(len(begining_index)):
             g.append([])
+            #here we assume that there are 7 attributes illustrated in the file:volume,energy...
             for j in range(begining_index[i]+7,ending_index[i],7):
+                #here it is assumed that the energy is the 4th column
                 g[i].append(float(l_poscar[j+3]))
         index_number=0
         for i in range(len(g)):
             index_number=index_number+len(g[i])
-        xy=[]
+        xy=[] #we create a list of coordinates [index/generation,energy]
         for i in range(len(g)):
             for j in range(len(g[i])):
                 xy.append([i+1,g[i][j]])              
         file = s11
         f=open(file)
+        #here we assume that the vasp written molecules all start with EA
         l_poscar=f.read().split('EA')
         s1='EA'
         for i in range(len(l_poscar)):
@@ -104,44 +118,36 @@ def browse_txt(s11):
             l_poscar[i]=s1
             s1='EA'
         del(l_poscar[0])
-
-        nrj=[]
+        nrj=[] #we create a list for the energies collected
         for i in range(len(xy)):
             nrj.append(xy[i][1])
-        # xy=[]
-        # for i in range(len(l)):
-        #     xy.append([i,nrj[i]])
         if len(xy)<=10:
             r=len(begining_index)
         else:
             r=10
-        new_xy=[]
+        new_xy=[] #we create a list with the window coordinates corresponding to the plot 
         for i in range(0,len(xy)):
             new_xy.append(coordinate_calcul(xy[i][0],xy[i][1],0,r,np.min(nrj),np.max(nrj)))
         path="C:\\Users\\br\\Desktop"
         os.chdir(path)
         fen=Tk()
-        fen.title('liste des générations existantes')
+        fen.title('list of existing generations')
         fen.geometry("300x300")
+        #we create an option list with the different generation intervals
         options_list=list_index(len(begining_index)-1)
         value_inside=StringVar(fen)
-        value_inside.set('choisir')
+        value_inside.set('choose')
         question_menu =OptionMenu(fen, value_inside, *options_list) 
         question_menu.pack() 
-        def print_answers(): 
-            s=value_inside.get()
-            #print(s[1:len(s)-2]) 
-            print(s)
-            return None
-        submit_button = Button(fen, text='generate plot') 
-        submit_button.pack() 
-        # ph=PhotoImage(file='here.png') #motif des points cliquable
-       
+        #we create a button that generates the corresponding plot
+        submit_button = Button(fen, text='generate plot')
+        submit_button.pack()        
         submit_button["command"]=partial(generate_plot_generation,xy,nrj,begining_index,l_poscar,value_inside)
-        #submit_button["command"]=print_answers
         fen.mainloop()  
+"""browse: function used to browse for a specific file to either visulize or generate
+a plot with it"""
 def browse(b1,b2,b3,b4):
-    p=filedialog.askopenfile()
+    p=filedialog.askopenfile() #browse for file of interest
     path=str(p)
     s=path.split("'")
     try:
@@ -156,42 +162,56 @@ def browse(b1,b2,b3,b4):
             s11=s11+'/'
         s11=s11+a
     if is_poscar(s11):
-        print("c'est un poscar")
-        b1['state']='disabled'
-        b2['state']='active'
-        b3['state']='active'
-        b4['state']='disabled'
-        b2['command']=partial(browse_txt,s11)
+        #print("it's a poscar")
+        file = s11
+        f=open(file) #reading the file
+        #spliting the file into molecules based on the fact they all begin with EA
+        l_poscar=f.read().split('EA')
+        s1='EA'
+        for i in range(len(l_poscar)):
+            s1=s1+l_poscar[i]
+            l_poscar[i]=s1
+            s1='EA'
+        del(l_poscar[0])
+        if len(l_poscar)>1: #if there is more than one molecule a USPEX file is needed
+            b1['state']='disabled'
+            b2['state']='active'
+            b3['state']='active'
+            b4['state']='disabled'
+            b2['command']=partial(browse_txt,s11)
+        else: #if there is only one molecule it can only be visualized
+            cif=read(s11)
+            view(cif)
     elif is_res(s11):
-        print("c'est un res")
+        #print("it's a res")
         f=open(s11)
-        l_res=f.read().split('\nEND\n') #lecture du fichier.res et separation des structures en listes
-        del(l_res[-1]) #suppression d'un vide eventuel
-        for i in range(len(l_res)): #ajout de END qui etait perdu en separation
+        l_res=f.read().split('\nEND\n') #here we assume molecules end with END
+        del(l_res[-1]) #delete a surplus
+        for i in range(len(l_res)): #adding the END again so that the string is similar to res file
             l_res[i]=l_res[i]+'\nEND\n'
-
-        nrj=[]
+        nrj=[] #we create an energy vector/list to store the collected energy
         for i in range(len(l_res)):
             nrj.append(float(l_res[i].split(' ')[4]))
-        xy=[]
+        xy=[] #we create a coordinates vector
         for i in range(len(l_res)):
             xy.append([i,nrj[i]])
+        #we limit each interval to a maximum of 100 molecules
         if len(xy)<=105:
-            r=len(xy)
-        
+            r=len(xy)        
         else:
             r=100
         new_xy=[]
+        #we calculate the window coordinates
         for i in range(0,r):
             new_xy.append(coordinate_calcul(xy[i][0],xy[i][1],0,r-1,np.min(nrj),np.max(nrj)))
         path="C:\\Users\\br\\Desktop"
         os.chdir(path)
         fen=Tk()
-        fen.title('liste des index existant')
+        fen.title('list of existing indexes')
         fen.geometry("300x300")
         options_list=list_index(len(nrj)-1)
         value_inside=StringVar(fen)
-        value_inside.set('choisir')
+        value_inside.set('choose')
         question_menu =OptionMenu(fen, value_inside, *options_list) 
         question_menu.pack() 
         submit_button = Button(fen, text='generate plot') 
@@ -200,28 +220,24 @@ def browse(b1,b2,b3,b4):
         submit_button["command"]=partial(generate_plot_index,xy,nrj,l_res,value_inside)
         fen.mainloop()
     elif is_cif(s11):
-        print("c'est un cif")
+        # print("it's a cif")
         cif=read(s11)
         view(cif)
     else:
-        print("c'est pas un fichier lisible")
+        #in case a non conformant file is entered
         CreateHover(b1,8,text='wrong file!')
     s2=s[1].split('.')
     if len(s2)<2:
         print("no extension")
     else:
         print(s2[1])
+"""back:to abort the USPEX upload"""
 def back(b1,b2,b3,b4):
     b1['state']='active'
     b2['state']='disabled'
     b3['state']='disabled'
     b4['state']='active'
-# def coordinate_calcul(x,y,minx,maxx,miny,maxy):
-#     new_xy=[]
-#     new_xy.append(167+(((x-minx)/(maxx-minx))*1063))
-#     new_xy.append(669-(((y-miny)/(maxy-miny))*577))
-#     return(new_xy)
-
+"""list_index: return a list of intervals"""
 def list_index(x):
     if x==0:
         return []
@@ -240,12 +256,14 @@ def list_index(x):
         a2=a1+x2
         li.append([str(a1)+"-"+str(a2)])
         return li
+"""readable: used to verify wether a file is readable or not"""
 def readable(x):
     try:
         y=read(x)
         return True
     except:
         return False 
+"""browse_xyz: used to browse for a folder that contains the files we want to visualize"""
 def browse_xyz():
     data=[]
     datalist=[]
@@ -310,9 +328,10 @@ def browse_xyz():
             new_xy.append(coordinate_calcul(xy[i][0],xy[i][1],0,r-1,np.min(nrj),np.max(nrj)))
     path="C:\\Users\\br\\Desktop"
     os.chdir(path)
+    #if there is no energy a plot cannot be generated therefore the files can only be viewed
     if np.max(nrj)==0.0 and np.min(nrj)==0.0:
         fen1=Tk()
-        fen1.title('liste des fichiers trouvés')
+        fen1.title('found files')
         fen1.geometry("300x300")
         options_list=file_list.copy()
         value_inside=StringVar(fen1)
@@ -324,11 +343,11 @@ def browse_xyz():
         submit_button.pack()  
     else:
         fen=Tk()
-        fen.title('liste des index existant')
+        fen.title('list of existing indexes')
         fen.geometry("300x300")
         options_list=list_index(len(nrj)-1)
         value_inside=StringVar(fen)
-        value_inside.set('choisir')
+        value_inside.set('choose')
         question_menu =OptionMenu(fen, value_inside, *options_list) 
         question_menu.pack() 
         submit_button = Button(fen, text='generate plot') 
