@@ -1,1 +1,2 @@
-# Chem
+# PyQChem
+Python modules for Quantum Chemistry.
